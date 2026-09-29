@@ -9,5 +9,6 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags=
 
 FROM gcr.io/distroless/static:nonroot
 COPY --from=build /netflow-enricher /netflow-enricher
-USER nonroot:nonroot
+# Numeric, so Kubernetes can check runAsNonRoot against it.
+USER 65532:65532
 ENTRYPOINT ["/netflow-enricher"]
