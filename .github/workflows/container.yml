@@ -35,6 +35,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+      # Keyless signing: the workflow's GitHub OIDC token gets a short-lived Sigstore certificate.
+      id-token: write
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -65,7 +67,12 @@ jobs:
             type=sha
             type=raw,value=latest,enable={{is_default_branch}}
 
+      - name: Install cosign
+        if: github.event_name != 'pull_request'
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
       - name: Build and publish
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -75,3 +82,11 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # Keyless signature (Sigstore) on the pushed digest - the multi-arch index, which is what the
+      # homelab pins and what its Kyverno policy checks against this workflow's identity.
+      - name: Sign the image
+        if: github.event_name != 'pull_request'
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: cosign sign --yes "ghcr.io/${GITHUB_REPOSITORY,,}@${DIGEST}"
